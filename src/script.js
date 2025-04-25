@@ -17,38 +17,6 @@ const canvas = document.querySelector('canvas.webgl')
 const scene = new THREE.Scene()
 
 /**
- * Objects
- */
-const parameters = {}
-parameters.radius = 1;
-
-// Geometry
-const geometry = new THREE.SphereGeometry(parameters.radius, 32, 16);
-
-// Material
-const material = new THREE.ShaderMaterial({
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    vertexShader,
-    fragmentShader,
-    uniforms: {
-        uTime: { value: 0 },
-    }
-})
-
-gui.add(material, 'wireframe');
-
-// Mesh
-const mesh = new THREE.Mesh(geometry, material)
-scene.add(mesh)
-
-gui.add(parameters, 'radius').min(1).max(10).step(1).onFinishChange(() => {
-    mesh.geometry.dispose()
-    mesh.geometry = new THREE.SphereGeometry(parameters.radius, 32, 16)
-});
-
-/**
  * Sizes
  */
 const sizes = {
@@ -85,6 +53,39 @@ const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
 
 /**
+ * Objects
+ */
+const parameters = {}
+parameters.radius = 1;
+
+// Geometry
+const geometry = new THREE.SphereGeometry(parameters.radius, 32, 16);
+
+// Material
+const material = new THREE.ShaderMaterial({
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    vertexShader,
+    fragmentShader,
+    uniforms: {
+        uTime: new THREE.Uniform(0),
+        uFrequency: new THREE.Uniform(0)
+    }
+})
+
+gui.add(material, 'wireframe');
+
+// Mesh
+const mesh = new THREE.Mesh(geometry, material)
+scene.add(mesh)
+
+gui.add(parameters, 'radius').min(1).max(10).step(1).onFinishChange(() => {
+    mesh.geometry.dispose()
+    mesh.geometry = new THREE.SphereGeometry(parameters.radius, 32, 16)
+});
+
+/**
  * Audio
  */
 // create an AudioListener and add it to the camera
@@ -96,17 +97,29 @@ const sound = new THREE.Audio( listener );
 
 // load a sound and set it as the Audio object's buffer
 const audioLoader = new THREE.AudioLoader();
+audioLoader.load( 'sounds/sample-1meg.ogg', function( buffer ) {
+    sound.setBuffer( buffer );
+    sound.setLoop( false );
+    sound.setVolume( 0.5 );
+})
 
-// start the sound on click in debug panel
+// create an AudioAnalyser, passing in the sound and desired fftSize
+const analyser = new THREE.AudioAnalyser( sound, 32 );
+
+// get the average frequency of the sound
+// const data = analyser.getAverageFrequency();
+// console.log({analyser, data})
+
+// start or stop the sound by clicking buttons in debug panel
 parameters.playSound = () => {
-    audioLoader.load( 'sounds/sample-1meg.ogg', function( buffer ) {
-        sound.setBuffer( buffer );
-        sound.setLoop( true );
-        sound.setVolume( 0.5 );
-        sound.play();
-    });
+    sound.play();
 };
 gui.add(parameters, 'playSound');
+
+parameters.stopSound = () => {
+    sound.stop();
+}
+gui.add(parameters, 'stopSound');
 
 /**
  * Renderer
@@ -126,7 +139,8 @@ const tick = () => {
     const elapsedTime = clock.getElapsedTime()
 
     // mat
-    // material.uniforms.uTime.value = elapsedTime
+    material.uniforms.uTime.value = elapsedTime
+    material.uniforms.uFrequency.value = analyser.getAverageFrequency()
 
     // Update controls
     controls.update()
