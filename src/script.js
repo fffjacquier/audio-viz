@@ -1,6 +1,8 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import GUI from 'lil-gui'
+import vertexShader from './shaders/vertexShader.glsl'
+import fragmentShader from './shaders/fragmentShader.glsl'
 
 /**
  * Base
@@ -28,6 +30,8 @@ const material = new THREE.ShaderMaterial({
     transparent: true,
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
+    vertexShader,
+    fragmentShader,
     uniforms: {
         uTime: { value: 0 },
     }
@@ -79,6 +83,30 @@ scene.add(camera)
 // Controls
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
+
+/**
+ * Audio
+ */
+// create an AudioListener and add it to the camera
+const listener = new THREE.AudioListener();
+camera.add( listener );
+
+// create a global audio source
+const sound = new THREE.Audio( listener );
+
+// load a sound and set it as the Audio object's buffer
+const audioLoader = new THREE.AudioLoader();
+
+// start the sound on click in debug panel
+parameters.playSound = () => {
+    audioLoader.load( 'sounds/sample-1meg.ogg', function( buffer ) {
+        sound.setBuffer( buffer );
+        sound.setLoop( true );
+        sound.setVolume( 0.5 );
+        sound.play();
+    });
+};
+gui.add(parameters, 'playSound');
 
 /**
  * Renderer
