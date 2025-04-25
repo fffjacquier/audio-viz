@@ -53,39 +53,6 @@ const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
 
 /**
- * Objects
- */
-const parameters = {}
-parameters.radius = 1;
-
-// Geometry
-const geometry = new THREE.SphereGeometry(parameters.radius, 32, 16);
-
-// Material
-const material = new THREE.ShaderMaterial({
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    side: THREE.DoubleSide,
-    vertexShader,
-    fragmentShader,
-    uniforms: {
-        uTime: new THREE.Uniform(0),
-        uFrequency: new THREE.Uniform(0)
-    }
-})
-
-gui.add(material, 'wireframe');
-
-// Mesh
-const mesh = new THREE.Mesh(geometry, material)
-scene.add(mesh)
-
-gui.add(parameters, 'radius').min(1).max(10).step(1).onFinishChange(() => {
-    mesh.geometry.dispose()
-    mesh.geometry = new THREE.SphereGeometry(parameters.radius, 32, 16)
-});
-
-/**
  * Audio
  */
 // create an AudioListener and add it to the camera
@@ -110,16 +77,106 @@ const analyser = new THREE.AudioAnalyser( sound, 32 );
 // const data = analyser.getAverageFrequency();
 // console.log({analyser, data})
 
+/**
+ * Objects
+ */
+const parameters = {}
+parameters.radius = 1;
+parameters.count = 10000;
+parameters.insideColor = '#ff6030'
+parameters.outsideColor = '#1b3984'
+
+const geos = ['SphereGeometry', 'PlaneGeometry']
+let currentGeometry = 0;
+
 // start or stop the sound by clicking buttons in debug panel
 parameters.playSound = () => {
+    if (sound.isPlaying) {
+        return sound.stop();
+    }
     sound.play();
 };
 gui.add(parameters, 'playSound');
 
 parameters.stopSound = () => {
-    sound.stop();
+    if (sound && sound.isPlaying) { 
+        sound.stop();
+    }
 }
 gui.add(parameters, 'stopSound');
+
+// gui.add(parameters, 'count');
+
+// Geometry
+const geometry = new THREE[geos[currentGeometry]](parameters.radius, 32, 16);
+
+const insideColor = new THREE.Color(parameters.insideColor)
+const outsideColor = new THREE.Color(parameters.outsideColor)
+const colors = new Float32Array(parameters.count * 3)
+
+for (let i = 0; i < parameters.count; i++) {
+    const i3 = i * 3
+
+    // Position
+    const radius = Math.random() * parameters.radius
+
+    // Color
+    const mixedColor = insideColor.clone()
+    mixedColor.lerp(outsideColor, radius / parameters.radius)
+
+    colors[i3] = mixedColor.r
+    colors[i3 + 1] = mixedColor.g
+    colors[i3 + 2] = mixedColor.b
+}
+const dataTexture = new THREE.DataTexture(colors, sizes.width, sizes.height)
+dataTexture.needsUpdate = true
+
+// Material
+const material = new THREE.ShaderMaterial({
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    transparent: true,
+    fragmentShader,
+    vertexShader,
+    uniforms: {
+        uTime: new THREE.Uniform(0),
+        uFrequency: new THREE.Uniform(0),
+        // uAudioData: new THREE.Uniform(new THREE.DataTexture(analyser.data, 64, 32, THREE.RedFormat)),
+        uAudioData: new THREE.Uniform(new THREE.Data3DTexture(dataTexture)),
+        uInsideColor: new THREE.Uniform(insideColor),
+        uOutsideColor: new THREE.Uniform(outsideColor),
+    }
+})
+
+gui.add(material, 'wireframe');
+
+// Mesh
+const mesh = new THREE.Mesh(geometry, material)
+scene.add(mesh)
+
+// Change geometry
+parameters.changeMesh = () => {
+    mesh.geometry.dispose();
+
+    if (currentGeometry === 0) {
+        mesh.geometry = new THREE.PlaneGeometry(1, 1);
+    } else if (currentGeometry === 1) {
+        mesh.geometry = new THREE.SphereGeometry(parameters.radius, 32, 16)
+    }
+    currentGeometry = ++currentGeometry % geos.length
+}
+gui.add(parameters, 'changeMesh')
+
+gui.add(parameters, 'radius').min(1).max(10).step(1).name('radius').onFinishChange(() => {
+    mesh.geometry.dispose()
+    if (currentGeometry === 0) {
+        mesh.geometry = new THREE.SphereGeometry(parameters.radius, 32, 16)
+    }
+});
+
+gui.addColor(parameters, 'insideColor').onFinishChange(() => console.log("1"))
+gui.addColor(parameters, 'outsideColor').onFinishChange(() => console.log("1"))
 
 /**
  * Renderer
@@ -141,6 +198,7 @@ const tick = () => {
     // mat
     material.uniforms.uTime.value = elapsedTime
     material.uniforms.uFrequency.value = analyser.getAverageFrequency()
+    material.uniforms.uAudioData.needsUpdate = true
 
     // Update controls
     controls.update()
